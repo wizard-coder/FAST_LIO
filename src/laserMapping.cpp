@@ -60,6 +60,9 @@
 #include "preprocess.h"
 #include <ikd-Tree/ikd_Tree.h>
 
+// kepri
+#include <tf/transform_listener.h>
+
 #define INIT_TIME (0.1)
 #define LASER_POINT_COV (0.001)
 #define MAXN (720000)
@@ -592,13 +595,52 @@ void set_posestamp(T &out)
     out.pose.orientation.w = geoQuat.w;
 }
 
-void publish_odometry(const ros::Publisher &pubOdomAftMapped)
+void publish_odometry(const ros::Publisher &pubOdomAftMapped, const tf::TransformListener &tf_listener)
 {
-    odomAftMapped.header.frame_id = "camera_init";
-    odomAftMapped.child_frame_id = "body";
-    odomAftMapped.header.stamp = ros::Time().fromSec(lidar_end_time); // ros::Time().fromSec(lidar_end_time);
+    // kepri : odometry를 base link 기준으로 생성하도록 수정
+    tf::StampedTransform transform_base_to_lidar;
+    tf::StampedTransform transform_lidar_to_base;
+
+    try
+    {
+        tf_listener.lookupTransform("velodyne", "base_link", ros::Time(0), transform_base_to_lidar);
+        tf_listener.lookupTransform("base_link", "velodyne", ros::Time(0), transform_lidar_to_base);
+    }
+    catch (tf::TransformException ex)
+    {
+        ROS_ERROR("FAILED TO GET TF: %s", ex.what());
+        return;
+    }
+
     set_posestamp(odomAftMapped.pose);
-    pubOdomAftMapped.publish(odomAftMapped);
+    tf::Transform transform_lidar_odom;
+    tf::Quaternion q;
+    transform_lidar_odom.setOrigin(tf::Vector3(odomAftMapped.pose.pose.position.x,
+                                               odomAftMapped.pose.pose.position.y,
+                                               odomAftMapped.pose.pose.position.z));
+    q.setW(odomAftMapped.pose.pose.orientation.w);
+    q.setX(odomAftMapped.pose.pose.orientation.x);
+    q.setY(odomAftMapped.pose.pose.orientation.y);
+    q.setZ(odomAftMapped.pose.pose.orientation.z);
+    transform_lidar_odom.setRotation(q);
+
+    tf::Transform transform_base_odom = transform_base_to_lidar * transform_lidar_odom * transform_lidar_to_base;
+
+    nav_msgs::Odometry odom;
+    odom.header.frame_id = "odom";
+    odom.child_frame_id = "base_link";
+    odom.header.stamp = ros::Time().fromSec(lidar_end_time);
+    odom.pose.pose.position.x = transform_base_odom.getOrigin().getX();
+    odom.pose.pose.position.y = transform_base_odom.getOrigin().getY();
+    odom.pose.pose.position.z = transform_base_odom.getOrigin().getZ();
+    odom.pose.pose.orientation.x = transform_base_odom.getRotation().getX();
+    odom.pose.pose.orientation.y = transform_base_odom.getRotation().getY();
+    odom.pose.pose.orientation.z = transform_base_odom.getRotation().getZ();
+    odom.pose.pose.orientation.w = transform_base_odom.getRotation().getW();
+    odom.pose.covariance = odomAftMapped.pose.covariance;
+
+    pubOdomAftMapped.publish(odom);
+
     auto P = kf.get_P();
     for (int i = 0; i < 6; i++)
     {
@@ -611,17 +653,35 @@ void publish_odometry(const ros::Publisher &pubOdomAftMapped)
         odomAftMapped.pose.covariance[i * 6 + 5] = P(k, 2);
     }
 
-    static tf::TransformBroadcaster br;
-    tf::Transform transform;
-    tf::Quaternion q;
-    transform.setOrigin(tf::Vector3(odomAftMapped.pose.pose.position.x,
-                                    odomAftMapped.pose.pose.position.y,
-                                    odomAftMapped.pose.pose.position.z));
-    q.setW(odomAftMapped.pose.pose.orientation.w);
-    q.setX(odomAftMapped.pose.pose.orientation.x);
-    q.setY(odomAftMapped.pose.pose.orientation.y);
-    q.setZ(odomAftMapped.pose.pose.orientation.z);
-    transform.setRotation(q);
+    // 기존 코드
+    // odomAftMapped.header.frame_id = "camera_init";
+    // odomAftMapped.child_frame_id = "body";
+    // odomAftMapped.header.stamp = ros::Time().fromSec(lidar_end_time); // ros::Time().fromSec(lidar_end_time);
+    // set_posestamp(odomAftMapped.pose);
+    // pubOdomAftMapped.publish(odomAftMapped);
+    // auto P = kf.get_P();
+    // for (int i = 0; i < 6; i++)
+    // {
+    //     int k = i < 3 ? i + 3 : i - 3;
+    //     odomAftMapped.pose.covariance[i * 6 + 0] = P(k, 3);
+    //     odomAftMapped.pose.covariance[i * 6 + 1] = P(k, 4);
+    //     odomAftMapped.pose.covariance[i * 6 + 2] = P(k, 5);
+    //     odomAftMapped.pose.covariance[i * 6 + 3] = P(k, 0);
+    //     odomAftMapped.pose.covariance[i * 6 + 4] = P(k, 1);
+    //     odomAftMapped.pose.covariance[i * 6 + 5] = P(k, 2);
+    // }
+
+    // static tf::TransformBroadcaster br;
+    // tf::Transform transform;
+    // tf::Quaternion q;
+    // transform.setOrigin(tf::Vector3(odomAftMapped.pose.pose.position.x,
+    //                                 odomAftMapped.pose.pose.position.y,
+    //                                 odomAftMapped.pose.pose.position.z));
+    // q.setW(odomAftMapped.pose.pose.orientation.w);
+    // q.setX(odomAftMapped.pose.pose.orientation.x);
+    // q.setY(odomAftMapped.pose.pose.orientation.y);
+    // q.setZ(odomAftMapped.pose.pose.orientation.z);
+    // transform.setRotation(q);
     // br.sendTransform( tf::StampedTransform( transform, odomAftMapped.header.stamp, "camera_init", "body" ) );
 }
 
@@ -726,7 +786,7 @@ void h_share_model(state_ikfom &s, esekfom::dyn_share_datastruct<double> &ekfom_
     double solve_start_ = omp_get_wtime();
 
     /*** Computation of Measuremnt Jacobian matrix H and measurents vector ***/
-    ekfom_data.h_x = MatrixXd::Zero(effct_feat_num, 12); //23
+    ekfom_data.h_x = MatrixXd::Zero(effct_feat_num, 12); // 23
     ekfom_data.h.resize(effct_feat_num);
 
     for (int i = 0; i < effct_feat_num; i++)
@@ -748,7 +808,7 @@ void h_share_model(state_ikfom &s, esekfom::dyn_share_datastruct<double> &ekfom_
         V3D A(point_crossmat * C);
         if (extrinsic_est_en)
         {
-            V3D B(point_be_crossmat * s.offset_R_L_I.conjugate() * C); //s.rot.conjugate()*norm_vec);
+            V3D B(point_be_crossmat * s.offset_R_L_I.conjugate() * C); // s.rot.conjugate()*norm_vec);
             ekfom_data.h_x.block<1, 12>(i, 0) << norm_p.x, norm_p.y, norm_p.z, VEC_FROM_ARRAY(A), VEC_FROM_ARRAY(B), VEC_FROM_ARRAY(C);
         }
         else
@@ -855,6 +915,8 @@ int main(int argc, char **argv)
     ros::Publisher pubLaserCloudMap = nh.advertise<sensor_msgs::PointCloud2>("/Laser_map", 100000);
     ros::Publisher pubOdomAftMapped = nh.advertise<nav_msgs::Odometry>("/Odometry", 100000);
     ros::Publisher pubPath = nh.advertise<nav_msgs::Path>("/path", 100000);
+    // kepri
+    tf::TransformListener tf_listener;
     //------------------------------------------------------------------------------------------------------
     signal(SIGINT, SigHandle);
     ros::Rate rate(5000);
@@ -966,7 +1028,8 @@ int main(int argc, char **argv)
             double t_update_end = omp_get_wtime();
 
             /******* Publish odometry *******/
-            publish_odometry(pubOdomAftMapped);
+            // kepri
+            publish_odometry(pubOdomAftMapped, tf_listener);
 
             /*** add the feature points to map kdtree ***/
             t3 = omp_get_wtime();
