@@ -62,6 +62,9 @@
 
 // kepri
 #include <tf/transform_listener.h>
+std::string base_link_frame;
+std::string lidar_frame;
+std::string odom_frame;
 
 #define INIT_TIME (0.1)
 #define LASER_POINT_COV (0.001)
@@ -603,8 +606,8 @@ void publish_odometry(const ros::Publisher &pubOdomAftMapped, const tf::Transfor
 
     try
     {
-        tf_listener.lookupTransform("velodyne", "base_link", ros::Time(0), transform_base_to_lidar);
-        tf_listener.lookupTransform("base_link", "velodyne", ros::Time(0), transform_lidar_to_base);
+        tf_listener.lookupTransform(base_link_frame, lidar_frame, ros::Time(0), transform_base_to_lidar);
+        tf_listener.lookupTransform(lidar_frame, base_link_frame, ros::Time(0), transform_lidar_to_base);
     }
     catch (tf::TransformException ex)
     {
@@ -627,8 +630,8 @@ void publish_odometry(const ros::Publisher &pubOdomAftMapped, const tf::Transfor
     tf::Transform transform_base_odom = transform_base_to_lidar * transform_lidar_odom * transform_lidar_to_base;
 
     nav_msgs::Odometry odom;
-    odom.header.frame_id = "odom";
-    odom.child_frame_id = "base_link";
+    odom.header.frame_id = odom_frame;
+    odom.child_frame_id = base_link_frame;
     odom.header.stamp = ros::Time().fromSec(lidar_end_time);
     odom.pose.pose.position.x = transform_base_odom.getOrigin().getX();
     odom.pose.pose.position.y = transform_base_odom.getOrigin().getY();
@@ -682,7 +685,7 @@ void publish_odometry(const ros::Publisher &pubOdomAftMapped, const tf::Transfor
     // q.setY(odomAftMapped.pose.pose.orientation.y);
     // q.setZ(odomAftMapped.pose.pose.orientation.z);
     // transform.setRotation(q);
-    // br.sendTransform( tf::StampedTransform( transform, odomAftMapped.header.stamp, "camera_init", "body" ) );
+    // br.sendTransform(tf::StampedTransform(transform, odomAftMapped.header.stamp, "camera_init", "body"));
 }
 
 void publish_path(const ros::Publisher pubPath)
@@ -859,6 +862,11 @@ int main(int argc, char **argv)
     nh.param<vector<double>>("mapping/extrinsic_T", extrinT, vector<double>());
     nh.param<vector<double>>("mapping/extrinsic_R", extrinR, vector<double>());
     cout << "p_pre->lidar_type " << p_pre->lidar_type << endl;
+
+    // kepri
+    nh.param<std::string>("base_link_frame", base_link_frame, "base_link");
+    nh.param<std::string>("lidar_frame", lidar_frame, "lidar_link");
+    nh.param<std::string>("odom_frame", odom_frame, "odom");
 
     path.header.stamp = ros::Time::now();
     path.header.frame_id = "camera_init";
