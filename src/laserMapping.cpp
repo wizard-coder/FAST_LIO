@@ -601,67 +601,8 @@ void set_posestamp(T &out)
 void publish_odometry(const ros::Publisher &pubOdomAftMapped, const tf::TransformListener &tf_listener)
 {
     // kepri : odometry를 base link 기준으로 생성하도록 수정
-    tf::StampedTransform transform_base_to_lidar;
-    tf::StampedTransform transform_lidar_to_base;
-
-    try
-    {
-        tf_listener.lookupTransform(base_link_frame, lidar_frame, ros::Time(0), transform_base_to_lidar);
-        tf_listener.lookupTransform(lidar_frame, base_link_frame, ros::Time(0), transform_lidar_to_base);
-    }
-    catch (tf::TransformException ex)
-    {
-        ROS_ERROR("FAILED TO GET TF: %s", ex.what());
-        return;
-    }
-
-    set_posestamp(odomAftMapped.pose);
-    tf::Transform transform_lidar_odom;
-    tf::Quaternion q;
-    transform_lidar_odom.setOrigin(tf::Vector3(odomAftMapped.pose.pose.position.x,
-                                               odomAftMapped.pose.pose.position.y,
-                                               odomAftMapped.pose.pose.position.z));
-    q.setW(odomAftMapped.pose.pose.orientation.w);
-    q.setX(odomAftMapped.pose.pose.orientation.x);
-    q.setY(odomAftMapped.pose.pose.orientation.y);
-    q.setZ(odomAftMapped.pose.pose.orientation.z);
-    transform_lidar_odom.setRotation(q);
-
-    tf::Transform transform_base_odom = transform_base_to_lidar * transform_lidar_odom * transform_lidar_to_base;
-
-    nav_msgs::Odometry odom;
-    odom.header.frame_id = odom_frame;
-    odom.child_frame_id = base_link_frame;
-    odom.header.stamp = ros::Time().fromSec(lidar_end_time);
-    odom.pose.pose.position.x = transform_base_odom.getOrigin().getX();
-    odom.pose.pose.position.y = transform_base_odom.getOrigin().getY();
-    odom.pose.pose.position.z = transform_base_odom.getOrigin().getZ();
-    odom.pose.pose.orientation.x = transform_base_odom.getRotation().getX();
-    odom.pose.pose.orientation.y = transform_base_odom.getRotation().getY();
-    odom.pose.pose.orientation.z = transform_base_odom.getRotation().getZ();
-    odom.pose.pose.orientation.w = transform_base_odom.getRotation().getW();
-    odom.pose.covariance = odomAftMapped.pose.covariance;
-
-    pubOdomAftMapped.publish(odom);
-
-    auto P = kf.get_P();
-    for (int i = 0; i < 6; i++)
-    {
-        int k = i < 3 ? i + 3 : i - 3;
-        odomAftMapped.pose.covariance[i * 6 + 0] = P(k, 3);
-        odomAftMapped.pose.covariance[i * 6 + 1] = P(k, 4);
-        odomAftMapped.pose.covariance[i * 6 + 2] = P(k, 5);
-        odomAftMapped.pose.covariance[i * 6 + 3] = P(k, 0);
-        odomAftMapped.pose.covariance[i * 6 + 4] = P(k, 1);
-        odomAftMapped.pose.covariance[i * 6 + 5] = P(k, 2);
-    }
-
-    // 기존 코드
-    // odomAftMapped.header.frame_id = "camera_init";
-    // odomAftMapped.child_frame_id = "body";
-    // odomAftMapped.header.stamp = ros::Time().fromSec(lidar_end_time); // ros::Time().fromSec(lidar_end_time);
     // set_posestamp(odomAftMapped.pose);
-    // pubOdomAftMapped.publish(odomAftMapped);
+
     // auto P = kf.get_P();
     // for (int i = 0; i < 6; i++)
     // {
@@ -673,6 +614,67 @@ void publish_odometry(const ros::Publisher &pubOdomAftMapped, const tf::Transfor
     //     odomAftMapped.pose.covariance[i * 6 + 4] = P(k, 1);
     //     odomAftMapped.pose.covariance[i * 6 + 5] = P(k, 2);
     // }
+
+    // tf::StampedTransform transform_base_to_lidar;
+    // tf::StampedTransform transform_lidar_to_base;
+
+    // try
+    // {
+    //     tf_listener.lookupTransform(base_link_frame, lidar_frame, ros::Time(0), transform_base_to_lidar);
+    //     tf_listener.lookupTransform(lidar_frame, base_link_frame, ros::Time(0), transform_lidar_to_base);
+    // }
+    // catch (tf::TransformException ex)
+    // {
+    //     ROS_ERROR("FAILED TO GET TF: %s", ex.what());
+    //     return;
+    // }
+
+    // tf::Transform transform_lidar_odom;
+    // tf::Quaternion q;
+    // transform_lidar_odom.setOrigin(tf::Vector3(odomAftMapped.pose.pose.position.x,
+    //                                            odomAftMapped.pose.pose.position.y,
+    //                                            odomAftMapped.pose.pose.position.z));
+    // q.setW(odomAftMapped.pose.pose.orientation.w);
+    // q.setX(odomAftMapped.pose.pose.orientation.x);
+    // q.setY(odomAftMapped.pose.pose.orientation.y);
+    // q.setZ(odomAftMapped.pose.pose.orientation.z);
+    // transform_lidar_odom.setRotation(q);
+
+    // // tf::Transform transform_base_odom = transform_base_to_lidar * transform_lidar_odom * transform_lidar_to_base;
+    // tf::Transform transform_base_odom = transform_lidar_odom;
+
+    // nav_msgs::Odometry odom;
+    // odom.header.frame_id = odom_frame;
+    // odom.child_frame_id = base_link_frame;
+    // odom.header.stamp = ros::Time().fromSec(lidar_end_time);
+    // odom.pose.pose.position.x = transform_base_odom.getOrigin().getX();
+    // odom.pose.pose.position.y = transform_base_odom.getOrigin().getY();
+    // odom.pose.pose.position.z = transform_base_odom.getOrigin().getZ();
+    // odom.pose.pose.orientation.x = transform_base_odom.getRotation().getX();
+    // odom.pose.pose.orientation.y = transform_base_odom.getRotation().getY();
+    // odom.pose.pose.orientation.z = transform_base_odom.getRotation().getZ();
+    // odom.pose.pose.orientation.w = transform_base_odom.getRotation().getW();
+    // odom.pose.covariance = odomAftMapped.pose.covariance;
+
+    // pubOdomAftMapped.publish(odom);
+
+    // 기존 코드
+    odomAftMapped.header.frame_id = "camera_init";
+    odomAftMapped.child_frame_id = "body";
+    odomAftMapped.header.stamp = ros::Time().fromSec(lidar_end_time); // ros::Time().fromSec(lidar_end_time);
+    set_posestamp(odomAftMapped.pose);
+    pubOdomAftMapped.publish(odomAftMapped);
+    auto P = kf.get_P();
+    for (int i = 0; i < 6; i++)
+    {
+        int k = i < 3 ? i + 3 : i - 3;
+        odomAftMapped.pose.covariance[i * 6 + 0] = P(k, 3);
+        odomAftMapped.pose.covariance[i * 6 + 1] = P(k, 4);
+        odomAftMapped.pose.covariance[i * 6 + 2] = P(k, 5);
+        odomAftMapped.pose.covariance[i * 6 + 3] = P(k, 0);
+        odomAftMapped.pose.covariance[i * 6 + 4] = P(k, 1);
+        odomAftMapped.pose.covariance[i * 6 + 5] = P(k, 2);
+    }
 
     // static tf::TransformBroadcaster br;
     // tf::Transform transform;
