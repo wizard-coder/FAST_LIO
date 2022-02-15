@@ -63,7 +63,6 @@
 // kepri
 #include <tf/transform_listener.h>
 std::string base_link_frame;
-std::string lidar_frame;
 std::string odom_frame;
 
 #define INIT_TIME (0.1)
@@ -506,7 +505,7 @@ void publish_frame_world(const ros::Publisher &pubLaserCloudFull)
         sensor_msgs::PointCloud2 laserCloudmsg;
         pcl::toROSMsg(*laserCloudWorld, laserCloudmsg);
         laserCloudmsg.header.stamp = ros::Time().fromSec(lidar_end_time);
-        laserCloudmsg.header.frame_id = "camera_init";
+        laserCloudmsg.header.frame_id = odom_frame;
         pubLaserCloudFull.publish(laserCloudmsg);
         publish_count -= PUBFRAME_PERIOD;
     }
@@ -556,7 +555,7 @@ void publish_frame_body(const ros::Publisher &pubLaserCloudFull_body)
     sensor_msgs::PointCloud2 laserCloudmsg;
     pcl::toROSMsg(*laserCloudIMUBody, laserCloudmsg);
     laserCloudmsg.header.stamp = ros::Time().fromSec(lidar_end_time);
-    laserCloudmsg.header.frame_id = "body";
+    laserCloudmsg.header.frame_id = base_link_frame;
     pubLaserCloudFull_body.publish(laserCloudmsg);
     publish_count -= PUBFRAME_PERIOD;
 }
@@ -573,7 +572,7 @@ void publish_effect_world(const ros::Publisher &pubLaserCloudEffect)
     sensor_msgs::PointCloud2 laserCloudFullRes3;
     pcl::toROSMsg(*laserCloudWorld, laserCloudFullRes3);
     laserCloudFullRes3.header.stamp = ros::Time().fromSec(lidar_end_time);
-    laserCloudFullRes3.header.frame_id = "camera_init";
+    laserCloudFullRes3.header.frame_id = odom_frame;
     pubLaserCloudEffect.publish(laserCloudFullRes3);
 }
 
@@ -582,7 +581,7 @@ void publish_map(const ros::Publisher &pubLaserCloudMap)
     sensor_msgs::PointCloud2 laserCloudMap;
     pcl::toROSMsg(*featsFromMap, laserCloudMap);
     laserCloudMap.header.stamp = ros::Time().fromSec(lidar_end_time);
-    laserCloudMap.header.frame_id = "camera_init";
+    laserCloudMap.header.frame_id = odom_frame;
     pubLaserCloudMap.publish(laserCloudMap);
 }
 
@@ -600,67 +599,8 @@ void set_posestamp(T &out)
 
 void publish_odometry(const ros::Publisher &pubOdomAftMapped, const tf::TransformListener &tf_listener)
 {
-    // kepri : odometry를 base link 기준으로 생성하도록 수정
-    // set_posestamp(odomAftMapped.pose);
-
-    // auto P = kf.get_P();
-    // for (int i = 0; i < 6; i++)
-    // {
-    //     int k = i < 3 ? i + 3 : i - 3;
-    //     odomAftMapped.pose.covariance[i * 6 + 0] = P(k, 3);
-    //     odomAftMapped.pose.covariance[i * 6 + 1] = P(k, 4);
-    //     odomAftMapped.pose.covariance[i * 6 + 2] = P(k, 5);
-    //     odomAftMapped.pose.covariance[i * 6 + 3] = P(k, 0);
-    //     odomAftMapped.pose.covariance[i * 6 + 4] = P(k, 1);
-    //     odomAftMapped.pose.covariance[i * 6 + 5] = P(k, 2);
-    // }
-
-    // tf::StampedTransform transform_base_to_lidar;
-    // tf::StampedTransform transform_lidar_to_base;
-
-    // try
-    // {
-    //     tf_listener.lookupTransform(base_link_frame, lidar_frame, ros::Time(0), transform_base_to_lidar);
-    //     tf_listener.lookupTransform(lidar_frame, base_link_frame, ros::Time(0), transform_lidar_to_base);
-    // }
-    // catch (tf::TransformException ex)
-    // {
-    //     ROS_ERROR("FAILED TO GET TF: %s", ex.what());
-    //     return;
-    // }
-
-    // tf::Transform transform_lidar_odom;
-    // tf::Quaternion q;
-    // transform_lidar_odom.setOrigin(tf::Vector3(odomAftMapped.pose.pose.position.x,
-    //                                            odomAftMapped.pose.pose.position.y,
-    //                                            odomAftMapped.pose.pose.position.z));
-    // q.setW(odomAftMapped.pose.pose.orientation.w);
-    // q.setX(odomAftMapped.pose.pose.orientation.x);
-    // q.setY(odomAftMapped.pose.pose.orientation.y);
-    // q.setZ(odomAftMapped.pose.pose.orientation.z);
-    // transform_lidar_odom.setRotation(q);
-
-    // // tf::Transform transform_base_odom = transform_base_to_lidar * transform_lidar_odom * transform_lidar_to_base;
-    // tf::Transform transform_base_odom = transform_lidar_odom;
-
-    // nav_msgs::Odometry odom;
-    // odom.header.frame_id = odom_frame;
-    // odom.child_frame_id = base_link_frame;
-    // odom.header.stamp = ros::Time().fromSec(lidar_end_time);
-    // odom.pose.pose.position.x = transform_base_odom.getOrigin().getX();
-    // odom.pose.pose.position.y = transform_base_odom.getOrigin().getY();
-    // odom.pose.pose.position.z = transform_base_odom.getOrigin().getZ();
-    // odom.pose.pose.orientation.x = transform_base_odom.getRotation().getX();
-    // odom.pose.pose.orientation.y = transform_base_odom.getRotation().getY();
-    // odom.pose.pose.orientation.z = transform_base_odom.getRotation().getZ();
-    // odom.pose.pose.orientation.w = transform_base_odom.getRotation().getW();
-    // odom.pose.covariance = odomAftMapped.pose.covariance;
-
-    // pubOdomAftMapped.publish(odom);
-
-    // 기존 코드
-    odomAftMapped.header.frame_id = "camera_init";
-    odomAftMapped.child_frame_id = "body";
+    odomAftMapped.header.frame_id = odom_frame;
+    odomAftMapped.child_frame_id = base_link_frame;
     odomAftMapped.header.stamp = ros::Time().fromSec(lidar_end_time); // ros::Time().fromSec(lidar_end_time);
     set_posestamp(odomAftMapped.pose);
     pubOdomAftMapped.publish(odomAftMapped);
@@ -676,25 +616,25 @@ void publish_odometry(const ros::Publisher &pubOdomAftMapped, const tf::Transfor
         odomAftMapped.pose.covariance[i * 6 + 5] = P(k, 2);
     }
 
-    // static tf::TransformBroadcaster br;
-    // tf::Transform transform;
-    // tf::Quaternion q;
-    // transform.setOrigin(tf::Vector3(odomAftMapped.pose.pose.position.x,
-    //                                 odomAftMapped.pose.pose.position.y,
-    //                                 odomAftMapped.pose.pose.position.z));
-    // q.setW(odomAftMapped.pose.pose.orientation.w);
-    // q.setX(odomAftMapped.pose.pose.orientation.x);
-    // q.setY(odomAftMapped.pose.pose.orientation.y);
-    // q.setZ(odomAftMapped.pose.pose.orientation.z);
-    // transform.setRotation(q);
-    // br.sendTransform(tf::StampedTransform(transform, odomAftMapped.header.stamp, "camera_init", "body"));
+    static tf::TransformBroadcaster br;
+    tf::Transform transform;
+    tf::Quaternion q;
+    transform.setOrigin(tf::Vector3(odomAftMapped.pose.pose.position.x,
+                                    odomAftMapped.pose.pose.position.y,
+                                    odomAftMapped.pose.pose.position.z));
+    q.setW(odomAftMapped.pose.pose.orientation.w);
+    q.setX(odomAftMapped.pose.pose.orientation.x);
+    q.setY(odomAftMapped.pose.pose.orientation.y);
+    q.setZ(odomAftMapped.pose.pose.orientation.z);
+    transform.setRotation(q);
+    // br.sendTransform(tf::StampedTransform(transform, odomAftMapped.header.stamp, odom_frame, base_link_frame));
 }
 
 void publish_path(const ros::Publisher pubPath)
 {
     set_posestamp(msg_body_pose);
     msg_body_pose.header.stamp = ros::Time().fromSec(lidar_end_time);
-    msg_body_pose.header.frame_id = "camera_init";
+    msg_body_pose.header.frame_id = odom_frame;
 
     /*** if path is too large, the rvis will crash ***/
     static int jjj = 0;
@@ -867,11 +807,10 @@ int main(int argc, char **argv)
 
     // kepri
     nh.param<std::string>("base_link_frame", base_link_frame, "base_link");
-    nh.param<std::string>("lidar_frame", lidar_frame, "lidar_link");
     nh.param<std::string>("odom_frame", odom_frame, "odom");
 
     path.header.stamp = ros::Time::now();
-    path.header.frame_id = "camera_init";
+    path.header.frame_id = odom_frame;
 
     /*** variables definition ***/
     int effect_feat_num = 0, frame_num = 0;
